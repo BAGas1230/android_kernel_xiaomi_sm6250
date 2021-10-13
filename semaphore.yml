@@ -1,0 +1,14 @@
+version: v1.0
+name: kernel buwil
+agent:
+  machine:
+    type: e1-standard-8
+    os_image: ubuntu2104
+blocks:
+   task:
+      jobs:
+        - name: Check environment variables
+          commands:
+           git clone --depth=50 https://github.com/BAGas1230/android_kernel_xiaomi_sm6250 -b arrow-10.0 meki
+		   cd meki
+		   bash kernul.sh
