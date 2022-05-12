@@ -33,16 +33,16 @@ err() {
 ##----------Basic Informations, COMPULSORY--------------##
 
 # The defult directory where the kernel should be placed
-KERNEL_DIR="$(pwd)"
+KERNEL_DIR=$PWD
 
 # The name of the Kernel, to name the ZIP
-ZIPNAME="BAGAS-kernel"
+ZIPNAME="SiLonT-TEST"
 
 # The name of the device for which the kernel is built
 MODEL="Redmi Note 9 Pro"
 
 # The codename of the device
-DEVICE="JOYEUSE"
+DEVICE="joyeuse"
 
 # The defconfig which should be used. Get it from config.gz from
 # your device or check source
@@ -80,7 +80,7 @@ SILENCE=0
 
 # Debug purpose. Send logs on every successfull builds
 # 1 is YES | 0 is NO(default)
-LOG_DEBUG=0
+LOG_DEBUG=1
 
 ##------------------------------------------------------##
 ##---------Do Not Touch Anything Beyond This------------##
@@ -90,24 +90,21 @@ LOG_DEBUG=0
 
 ## Set defaults first
 DISTRO=$(cat /etc/issue)
-KBUILD_BUILD_HOST=mikasa
+KBUILD_BUILD_HOST=tempik
 CI_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-token=1956393048:AAF0V0m7bUqfdo9I7zmxhrPt_o1-JIsmjd4
 export KBUILD_BUILD_HOST CI_BRANCH
-
 ## Check for CI
 if [ -n "$CI" ]
 then
 	if [ -n "$CIRCLECI" ]
 	then
 		export KBUILD_BUILD_VERSION=$CIRCLE_BUILD_NUM
-		export KBUILD_BUILD_HOST="Drone.io"
+		export KBUILD_BUILD_HOST="CircleCI"
 		export CI_BRANCH=$CIRCLE_BRANCH
 	fi
 	if [ -n "$DRONE" ]
 	then
 		export KBUILD_BUILD_VERSION=$DRONE_BUILD_NUMBER
-		export KBUILD_BUILD_HOST=Drone.io
 		export CI_BRANCH=$DRONE_BRANCH
 	else
 		echo "Not presetting Build Version"
@@ -128,35 +125,39 @@ DATE=$(TZ=Asia/Jakarta date +"%Y%m%d-%T")
 
  clone() {
 	echo " "
-		msg "|| Cloning GCC 9.3.0 baremetal ||"
-		git clone --depth=1 https://github.com/KudProject/aarch64-linux-android-4.9 -b master $KERNEL_DIR/gcc64
-		git clone --depth=1 https://github.com/KudProject/arm-linux-androideabi-4.9 -b master $KERNEL_DIR/gcc32
-        git clone -q https://github.com/kdrag0n/proton-clang --depth=1 --single-branch $KERNEL_DIR/azure
-		GCC64_DIR=$KERNEL_DIR/gcc64
-		GCC32_DIR=$KERNEL_DIR/gcc32
-                AZURE_DIR=$KERNEL_DIR/azure
-                apt install cpio
-                apt install xz-utils
+	msg "|| Cloning Clang ||"
+	git clone --depth=50 https://github.com/xiangfeidexiaohuo/Snapdragon-LLVM --no-tags --single-branch
+	msg "|| Cloning ARM64 GCC ||"
+	git clone --depth=1 https://github.com/silont-project/aarch64-silont-linux-gnu.git -b arm64/11 gcc64 --no-tags --single-branch
+	msg "|| Cloning ARM GCC ||"
+	git clone --depth=1 https://github.com/silont-project/arm-silont-linux-gnueabi -b arm/11 gcc32 --no-tags --single-branch
+		# Toolchain Directory defaults to clang-llvm
+	TC_DIR=$KERNEL_DIR/clang-llvm
+	GCC64_DIR=$KERNEL_DIR/gcc64
+	GCC32_DIR=$KERNEL_DIR/gcc32
 
-	msg "|| Cloning Anykernel ||" 
-	git clone --depth 1 --no-single-branch https://github.com/ydner/AnyKernel3 -b master-x00td
-	cp -af AnyKernel3/anykernel-real.sh AnyKernel3/anykernel.sh
-	sed -i "s/kernel.string=.*/kernel.string=$ZIPNAME by Tea-Project/g" AnyKernel3/anykernel.sh
+	msg "|| Cloning Anykernel ||"
+	git clone --depth 1 --no-single-branch https://github.com/Reinazhard/AnyKernel3.git -b master
 }
 
 ##------------------------------------------------------##
 
 exports() {
-	export KBUILD_BUILD_USER="mikasa"
+	export KBUILD_BUILD_USER="mikasaaa"
 	export ARCH=arm64
 	export SUBARCH=arm64
-        
-        KBUILD_COMPILER_STRING=$("$AZURE_DIR"/bin/clang --version | head -n 1)
-	PATH=$AZURE_DIR/bin/:$AZURE_DIR/bin/:/usr/bin:$PATH
+	export token=1956393048:AAF0V0m7bUqfdo9I7zmxhrPt_o1-JIsmjd4
 
-	export PATH KBUILD_COMPILER_STRING
-	export BOT_MSG_URL="https://api.telegram.org/bot1956393048:AAF0V0m7bUqfdo9I7zmxhrPt_o1-JIsmjd4/sendMessage"
-	export BOT_BUILD_URL="https://api.telegram.org/bot1956393048:AAF0V0m7bUqfdo9I7zmxhrPt_o1-JIsmjd4/sendDocument"
+		KBUILD_COMPILER_STRING=$("$TC_DIR"/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
+		PATH=$TC_DIR/bin/:$PATH
+		export LD_LIBRARY_PATH=$TC_DIR/lib64:$LD_LIBRARY_PATH
+		export CROSS_COMPILE=$GCC64_DIR/bin/aarch64-silont-linux-gnu-
+		export CROSS_COMPILE_ARM32=$GCC32_DIR/bin/arm-silont-linux-gnueabi-
+		
+
+	export PATH KBUILD_COMPILER_STRING 
+	export BOT_MSG_URL="https://api.telegram.org/bot$token/sendMessage"
+	export BOT_BUILD_URL="https://api.telegram.org/bot$token/sendDocument"
 	PROCS=$(nproc --all)
 	export PROCS
 }
@@ -164,7 +165,7 @@ exports() {
 ##---------------------------------------------------------##
 
 tg_post_msg() {
-	curl -s -X POST "$BOT_MSG_URL" -d chat_id="-1001258259919" \
+	curl -s -X POST "$BOT_MSG_URL" -d chat_id="$2" \
 	-d "disable_web_page_preview=true" \
 	-d "parse_mode=html" \
 	-d text="$1"
@@ -182,7 +183,7 @@ tg_post_build() {
 	-F chat_id="$2"  \
 	-F "disable_web_page_preview=true" \
 	-F "parse_mode=html" \
-	-F caption="$3 | <b>MD5 Checksum : </b><code>$MD5CHECK</code>"  
+	-F caption="$3 | <code>Build Number : </code><b>$DRONE_BUILD_NUMBER</b>"  
 }
 
 ##----------------------------------------------------------##
@@ -196,10 +197,10 @@ build_kernel() {
 
 	if [ "$PTTG" = 1 ]
  	then
-		tg_post_msg "<b>🔨 $KBUILD_BUILD_VERSION CI Build Triggered</b>%0A<b>Docker OS: </b><code>$DISTRO</code>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$(TZ=Asia/Jakarta date)</code>%0A<b>Device : </b><code>$MODEL [$DEVICE]</code>%0A<b>Pipeline Host : </b><code>$KBUILD_BUILD_HOST</code>%0A<b>Host Core Count : </b><code>$PROCS</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>%0A<b>Top Commit : </b><a href='$DRONE_COMMIT_LINK'><code>$COMMIT_HEAD</code></a>%0A<b>Status : </b>#Nightly" "$CHATID"
+		tg_post_msg "<b>🔨 $KBUILD_BUILD_VERSION CI Build Triggered</b>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$(TZ=Asia/Jakarta date)</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>%0A<b>HEAD : </b><a href='$DRONE_COMMIT_LINK'>$COMMIT_HEAD</a>" "$CHATID"
 	fi
 
-	make O=out $DEFCONFIG
+	make O=out $DEFCONFIG CC=clang
 	if [ $DEF_REG = 1 ]
 	then
 		cp .config arch/arm64/configs/$DEFCONFIG
@@ -211,21 +212,6 @@ build_kernel() {
 
 	BUILD_START=$(date +"%s")
 	
-	if [ $COMPILER = "clang" ]
-	then
-		MAKE+=(
-			ARCH=arm64 \
-			CC=clang \
-			AR=llvm-ar \
-			NM=llvm-nm \
-			OBJCOPY=llvm-objcopy \
-			OBJDUMP=llvm-objdump \
-			STRIP=llvm-strip \
-                        LD=ld.lld \
-			CROSS_COMPILE=aarch64-linux-gnu- \
-			CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-		)
-	fi
 	
 	if [ $SILENCE = "1" ]
 	then
@@ -233,20 +219,7 @@ build_kernel() {
 	fi
 
 	msg "|| Started Compilation ||"
-	export CROSS_COMPILE_ARM32=$AZURE_DIR/bin/arm-linux-gnueabi-
-	export CROSS_COMPILE=$AZURE_DIR/bin/aarch64-linux-gnu-
-	make -j"$PROCS" O=out \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-			CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-			CC=clang \
-            LD=ld.lld \
-			HOSTCC=clang \
-			AR=llvm-ar \
-			NM=llvm-nm \
-			OBJCOPY=llvm-objcopy \
-			OBJDUMP=llvm-objdump \
-			STRIP=llvm-strip
-			
+	make -j"$PROCS" O=out CC=clang AR=llvm-ar OBJDUMP=llvm-objdump STRIP=llvm-strip OBJCOPY=llvm-objcopy CLANG_TRIPLE=aarch64-silont-linux-gnu-ld.gold
 		BUILD_END=$(date +"%s")
 		DIFF=$((BUILD_END - BUILD_START))
 
@@ -289,6 +262,7 @@ gen_zip() {
 		tg_post_build "$ZIP_FINAL" "$CHATID" "✅ Build took : $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"
 	fi
 	cd ..
+	rm -rf AnyKernel3
 }
 
 clone
